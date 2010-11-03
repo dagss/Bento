@@ -105,10 +105,10 @@ def command_register(f, *a, **kw):
     for cmd_name, cmd_class in ret.items():
         register_command(cmd_name, cmd_class)
 
-def dummy_startup():
+def dummy_startup(evil):
     pass
 
-def dummy_shutdown():
+def dummy_shutdown(evil):
     pass
 
 def create_hook_module(target):

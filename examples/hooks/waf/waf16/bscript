@@ -1,0 +1,106 @@
+#! /usr/bin/env python
+import os
+import sys
+
+from bento.commands.hooks \
+    import \
+        pre_configure, pre_build, override, post_configure, post_build
+
+if os.environ.has_key("WAFDIR"):
+    WAFDIR = os.path.join(os.environ["WAFDIR"], "waflib")
+else:
+    WAFDIR = os.path.join(os.getcwd(), "waflib")
+
+def _init(bento_ctx, command):
+    tooldir = os.path.join(WAFDIR, "Tools")
+
+    sys.path.insert(0, os.path.dirname(WAFDIR))
+    sys.path.insert(0, tooldir)
+    cwd = os.getcwd()
+
+    from waflib.Context \
+        import \
+            create_context
+    from waflib.Options \
+        import \
+            OptionsContext
+    from waflib.Configure \
+        import \
+            ConfigurationContext
+    from waflib import Options
+    from waflib import Context
+    from waflib import Logs
+    from waflib import Build
+
+    WAF_CONFIG_LOG = 'config.log'
+
+    Logs.init_log()
+    opts = OptionsContext()
+    opts.parse_args()
+    opts.load("compiler_c")
+    Options.options.check_c_compiler = "gcc"
+    class FakeModule(object):
+        pass
+    Context.g_module = FakeModule
+    Context.g_module.root_path = os.path.abspath(__file__)
+    Context.g_module.top = os.getcwd()
+    Context.g_module.out = os.path.join(os.getcwd(), "build")
+
+    Context.top_dir = os.getcwd()
+    Context.out_dir = os.path.join(os.getcwd(), "build")
+
+    if command == "configure":
+        ctx = create_context("configure")
+        ctx.options = Options.options
+        #ctx.execute()
+        ctx.init_dirs()
+        ctx.cachedir = ctx.bldnode.make_node(Build.CACHE_DIR)
+        ctx.cachedir.mkdir()
+
+        path = os.path.join(ctx.bldnode.abspath(), WAF_CONFIG_LOG)
+        ctx.logger = Logs.make_logger(path, 'cfg')
+    elif command == "build":
+        ctx = create_context("build")
+        ctx.restore()
+        if not ctx.all_envs:
+            ctx.load_envs()
+    else:
+        raise ValueError("Unknown command: %s" % command)
+
+    bento_ctx.waf_ctx = ctx
+
+@pre_configure
+def pconfigure(bento_conf):
+    _init(bento_conf, "configure")
+    
+@post_configure
+def poconfigure(bento_conf):
+    conf = bento_conf.waf_ctx
+    
+    conf.load("compiler_c")
+    conf.load("python")
+    conf.check_python_version((2,4,2))
+    conf.check_python_headers()
+
+    conf.store()
+    
+@pre_build
+def pbuild(bento_conf):
+    _init(bento_conf, "build")
+    section_writer = bento_conf.cmd.section_writer
+    def dummy(pkg):
+        return []
+    section_writer.sections_callbacks["extensions"] = dummy
+    section_writer.sections_callbacks["compiled_libraries"] = dummy
+    
+@post_build
+def pobuild(bento_bld):
+    bld = bento_bld.waf_ctx
+    bld(
+        features = 'c cshlib pyext',
+        source   = 'src/hellomodule.c',
+        target   = '_bar')
+    bld.compile()
+
+def startup(evil):
+    evil["disable_yaku"] = True

@@ -67,6 +67,10 @@ else:
 
 SCRIPT_NAME = 'bentomaker'
 
+class EvilGlobalState(dict):
+    pass
+evil = EvilGlobalState()
+
 #================================
 #   Create the command line UI
 #================================
@@ -118,13 +122,13 @@ def main(argv=None):
 def _wrapped_main(popts):
     mods = set_main()
     for mod in mods:
-        mod.startup()
+        mod.startup(evil)
 
     try:
         return _main(popts)
     finally:
         for mod in mods:
-            mod.shutdown()
+            mod.shutdown(evil)
 
 def parse_global_options(argv):
     ret = {"cmd_name": None, "cmd_opts": None,
@@ -209,18 +213,25 @@ class Context(object):
 class ConfigureContext(Context):
     def __init__(self, cmd, cmd_opts, pkg, top_node):
         Context.__init__(self, cmd, cmd_opts, pkg, top_node)
-        self.yaku_configure_ctx = yaku.context.get_cfg()
+        if evil["disable_yaku"]:
+            self.yaku_configure_ctx = None
+        else:
+            self.yaku_configure_ctx = yaku.context.get_cfg()
 
     def store(self):
         Context.store(self)
-        self.yaku_configure_ctx.store()
+        if self.yaku_configure_ctx is not None:
+            self.yaku_configure_ctx.store()
         CachedPackage.write_checksums()
         _write_argv_checksum(_argv_checksum(sys.argv), "configure")
 
 class BuildContext(Context):
     def __init__(self, cmd, cmd_opts, pkg, top_node):
         Context.__init__(self, cmd, cmd_opts, pkg, top_node)
-        self.yaku_build_ctx = yaku.context.get_bld()
+        if evil["disable_yaku"]:
+            self.yaku_build_ctx = None
+        else:
+            self.yaku_build_ctx = yaku.context.get_bld()
         self._extensions_callback = {}
         self._clibraries_callback = {}
         self._clibrary_envs = {}
@@ -228,7 +239,8 @@ class BuildContext(Context):
 
     def store(self):
         Context.store(self)
-        self.yaku_build_ctx.store()
+        if self.yaku_build_ctx is not None:
+            self.yaku_build_ctx.store()
 
         checksum = _read_argv_checksum("configure")
         _write_argv_checksum(checksum, "build")

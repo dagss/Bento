@@ -77,7 +77,7 @@ Usage:   bentomaker build [OPTIONS]."""
         if ctx.get_user_data()["use_distutils"]:
             self.build_type = "distutils"
             build_extensions = build_distutils.build_extensions
-        else:
+        elif ctx.yaku_build_ctx is not None:
             self.build_type = "yaku"
             def builder(pkg):
                 return build_yaku.build_extensions(extensions,
@@ -91,10 +91,16 @@ Usage:   bentomaker build [OPTIONS]."""
                         ctx._clibrary_envs, inplace, verbose, jobs)
             build_compiled_libraries = builder
 
-        self.section_writer.sections_callbacks["compiled_libraries"] = \
-                build_compiled_libraries
-        self.section_writer.sections_callbacks["extensions"] = \
-                build_extensions
+            self.section_writer.sections_callbacks["compiled_libraries"] = \
+                    build_compiled_libraries
+            self.section_writer.sections_callbacks["extensions"] = \
+                    build_extensions
+        else:
+            pass
+            #def builder(pkg):
+            #    raise NotImplementedError("If you don't use yaku, you need to set section_writer callbacks !")
+            #build_compiled_libraries = builder
+            #build_extensions = builder
 
         def build_packages(pkg):
             return _build_python_files(pkg, ctx.top_node)
